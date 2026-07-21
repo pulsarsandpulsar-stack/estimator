@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Transport Price Estimator</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{
+  --bg:#f2f4f8; --card:#ffffff; --ink:#1a2332; --muted:#66788f; --line:#dde3ec;
+  --accent:#0f62fe; --accent-dark:#0043ce; --good:#0e8a3e; --warn:#b45309; --bad:#c0392b;
+  --chip:#eef3ff;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
+header{background:#101b2d;color:#fff;padding:10px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;position:sticky;top:0;z-index:1001}
+header h1{font-size:17px;margin:0;font-weight:600;white-space:nowrap}
+header .spacer{flex:1}
+.modeToggle{display:flex;background:#1f2f4a;border-radius:8px;overflow:hidden}
+.modeToggle button{background:transparent;border:0;color:#9fb3d1;padding:7px 16px;cursor:pointer;font-size:13px;font-weight:600}
+.modeToggle button.on{background:var(--accent);color:#fff}
+.unitBar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.unitBar select{background:#1f2f4a;color:#dbe6f5;border:1px solid #33476b;border-radius:6px;padding:5px 6px;font-size:12px}
+.unitBar label{font-size:11px;color:#8fa3c0}
+main{display:grid;grid-template-columns:minmax(380px,1.05fr) minmax(420px,1fr);gap:14px;padding:14px;max-width:1500px;margin:0 auto}
+@media(max-width:980px){main{grid-template-columns:1fr}}
+.col{display:flex;flex-direction:column;gap:14px;min-width:0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;box-shadow:0 1px 2px rgba(16,27,45,.05)}
+.card h2{margin:0 0 10px;font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px}
+.card h2 .tag{font-size:10px;font-weight:600;background:var(--chip);color:var(--accent-dark);padding:2px 7px;border-radius:99px}
+#map{height:380px;border-radius:8px;border:1px solid var(--line)}
+.hint{color:var(--muted);font-size:12px;margin:6px 0 0}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px 12px}
+.field{display:flex;flex-direction:column;gap:3px;min-width:0}
+.field label{font-size:11px;color:var(--muted);font-weight:600}
+.field .unit{font-weight:400}
+input[type=text],input[type=number],select{border:1px solid var(--line);border-radius:6px;padding:7px 8px;font-size:13px;width:100%;background:#fff;color:var(--ink)}
+input:focus,select:focus{outline:2px solid #bcd0ff;border-color:var(--accent)}
+button{font-family:inherit}
+.btn{background:var(--accent);color:#fff;border:0;border-radius:6px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer}
+.btn:hover{background:var(--accent-dark)}
+.btn.sec{background:#e8edf5;color:var(--ink)}
+.btn.sec:hover{background:#d9e2ef}
+.btn.sm{padding:5px 9px;font-size:12px}
+.btn.danger{background:#fdecea;color:var(--bad)}
+.btn.ghost{background:transparent;color:var(--accent);border:1px dashed var(--accent);width:100%}
+.stopRow{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+.stopRow .num{width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.stopRow input{flex:1}
+.stopRow .geo{font-size:10px;color:var(--good);flex-shrink:0}
+.iconBtn{background:none;border:0;cursor:pointer;font-size:14px;padding:2px;color:var(--muted)}
+.iconBtn:hover{color:var(--bad)}
+.routeSummary{display:flex;gap:18px;flex-wrap:wrap;background:var(--chip);border-radius:8px;padding:10px 14px;margin-top:10px}
+.routeSummary .stat b{font-size:17px;display:block}
+.routeSummary .stat span{font-size:11px;color:var(--muted)}
+.itemRow{display:grid;grid-template-columns:1.4fr .9fr 1fr auto;gap:6px;align-items:center;margin-bottom:6px}
+.itemRow.maint{grid-template-columns:1.4fr .9fr .9fr auto}
+table.results{width:100%;border-collapse:collapse;font-size:13px}
+table.results th{text-align:left;font-size:11px;color:var(--muted);border-bottom:1px solid var(--line);padding:4px 6px}
+table.results td{padding:5px 6px;border-bottom:1px solid #eef1f6}
+table.results td.r,table.results th.r{text-align:right;font-variant-numeric:tabular-nums}
+table.results tr.total td{font-weight:700;border-top:2px solid var(--line)}
+.quoteBox{background:linear-gradient(135deg,#0f62fe,#0043ce);color:#fff;border-radius:10px;padding:14px 18px;margin-top:12px;display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.quoteBox .big{font-size:30px;font-weight:800}
+.quoteBox .lbl{font-size:11px;opacity:.8}
+.quoteBox .sub b{font-size:15px}
+.bars{margin-top:12px}
+.bar{display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:11px}
+.bar .name{width:110px;color:var(--muted);flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar .track{flex:1;background:#eef1f6;border-radius:4px;height:14px;overflow:hidden}
+.bar .fill{height:100%;background:var(--accent);border-radius:4px;min-width:2px}
+.bar .val{width:70px;text-align:right;font-variant-numeric:tabular-nums}
+.savedRow{display:flex;gap:6px;margin-bottom:10px;align-items:center}
+.savedRow select{flex:1}
+.warnMsg{color:var(--bad);font-size:12px;margin-top:6px}
+.okMsg{color:var(--good);font-size:12px;margin-top:6px}
+body.quick .adv{display:none!important}
+#calcsView{display:none;grid-column:1/-1;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px;align-items:start}
+body.calcs #calcsView{display:grid}
+body.calcs main>.col{display:none}
+body.calcs .quickNote{display:none!important}
+.miniOut{background:var(--chip);border-radius:8px;padding:10px 12px;margin-top:10px;font-size:13px}
+.miniOut .ln{display:flex;justify-content:space-between;padding:2px 0}
+.miniOut .ln b{font-variant-numeric:tabular-nums}
+.miniOut .ln.big{border-top:1px solid #c9d7f5;margin-top:4px;padding-top:6px;font-weight:700;color:var(--accent-dark)}
+.quickNote{display:none;background:#fff8e6;border:1px solid #f2dfa8;color:#7a5b00;font-size:12px;border-radius:8px;padding:8px 12px;margin-bottom:12px}
+body.quick .quickNote{display:block}
+@media print{
+  header,#map,.stopsCard .stopControls,.noPrint,.bars,button{display:none!important}
+  main{display:block;padding:0}
+  .card{border:0;box-shadow:none;page-break-inside:avoid}
+  body{background:#fff}
+  .quoteBox{background:#0f62fe!important;-webkit-print-color-adjust:exact}
+}
+</style>
+</head>
+<body class="advanced">
+<header>
+  <h1>🚚 Transport Price Estimator</h1>
+  <div class="modeToggle noPrint">
+    <button id="modeQuick">Quick</button>
+    <button id="modeAdv" class="on">Advanced</button>
+  </div>
+  <div class="modeToggle noPrint">
+    <button id="viewEst" class="on">Estimator</button>
+    <button id="viewCalc">🧮 Calculators</button>
+  </div>
+  <div class="spacer"></div>
+  <div class="unitBar noPrint">
+    <label>Distance</label>
+    <select id="uDist"><option value="mi">miles</option><option value="km">km</option></select>
+    <label>Volume</label>
+    <select id="uVol"><option value="gal">gallons (US)</option><option value="L">litres</option></select>
+    <label>Economy</label>
+    <select id="uEco"><option value="mpg">MPG</option><option value="l100">L/100 km</option><option value="kml">km/L</option></select>
+    <label>Currency</label>
+    <select id="uCur"><option>CAD</option><option>USD</option><option>EUR</option><option>GBP</option><option>INR</option><option>MXN</option><option>AUD</option></select>
+  </div>
+  <button class="btn sec sm noPrint" id="btnPrint">🖨 Print quote</button>
+</header>
+<main>
+<div id="calcsView">
+  <div class="card">
+    <h2>⛽ Fuel &amp; DEF calculator</h2>
+    <div class="grid2">
+      <div class="field"><label>Distance <span class="unit" data-u="dist"></span></label><input type="number" id="c_f_dist" min="0" step="any" value="500"></div>
+      <div class="field"><label>Fuel economy <span class="unit" data-u="eco"></span></label><input type="number" id="c_f_eco" min="0.1" step="any" value="6.5"></div>
+      <div class="field"><label>Fuel price <span class="unit" data-u="perVol"></span></label><input type="number" id="c_f_price" min="0" step="any" value="5.5"></div>
+      <div class="field"><label>DEF % of fuel</label><input type="number" id="c_f_defpct" min="0" step="any" value="3"></div>
+      <div class="field"><label>DEF price <span class="unit" data-u="perVol"></span></label><input type="number" id="c_f_defprice" min="0" step="any" value="12"></div>
+    </div>
+    <div class="miniOut" id="c_f_out"></div>
+  </div>
+
+  <div class="card">
+    <h2>👤 Driver pay calculator</h2>
+    <div class="grid2">
+      <div class="field"><label>Pay model</label>
+        <select id="c_d_type">
+          <option value="perDist">Per distance</option><option value="hourly">Hourly</option>
+          <option value="combo">Hourly + per distance</option><option value="revenue">% of revenue</option>
+          <option value="flat">Flat per trip</option>
+        </select></div>
+      <div class="field"><label>Hours worked</label><input type="number" id="c_d_hours" min="0" step="any" value="10"></div>
+      <div class="field"><label>Distance <span class="unit" data-u="dist"></span></label><input type="number" id="c_d_dist" min="0" step="any" value="500"></div>
+      <div class="field"><label>Hourly rate <span class="unit" data-u="perHour"></span></label><input type="number" id="c_d_hr" min="0" step="any" value="30"></div>
+      <div class="field"><label>Rate per distance <span class="unit" data-u="perDist"></span></label><input type="number" id="c_d_pd" min="0" step="any" value="0.65"></div>
+      <div class="field"><label>% of revenue</label><input type="number" id="c_d_pct" min="0" step="any" value="25"></div>
+      <div class="field"><label>Trip revenue <span class="unit" data-u="money"></span></label><input type="number" id="c_d_rev" min="0" step="any" value="2000"></div>
+      <div class="field"><label>Flat amount <span class="unit" data-u="money"></span></label><input type="number" id="c_d_flat" min="0" step="any" value="500"></div>
+      <div class="field"><label>Burden % (benefits, tax)</label><input type="number" id="c_d_burden" min="0" step="any" value="12"></div>
+    </div>
+    <div class="miniOut" id="c_d_out"></div>
+  </div>
+
+  <div class="card">
+    <h2>🔧 Maintenance calculator</h2>
+    <div class="grid2">
+      <div class="field"><label>Service cost <span class="unit" data-u="money"></span></label><input type="number" id="c_m_cost" min="0" step="any" value="450"></div>
+      <div class="field"><label>Service interval <span class="unit" data-u="dist"></span></label><input type="number" id="c_m_interval" min="1" step="any" value="25000"></div>
+      <div class="field"><label>Breakdown budget / year <span class="unit" data-u="money"></span></label><input type="number" id="c_m_repair" min="0" step="any" value="8000"></div>
+      <div class="field"><label>Annual distance <span class="unit" data-u="dist"></span></label><input type="number" id="c_m_annual" min="1" step="any" value="100000"></div>
+      <div class="field"><label>Trip distance <span class="unit" data-u="dist"></span></label><input type="number" id="c_m_dist" min="0" step="any" value="500"></div>
+    </div>
+    <div class="miniOut" id="c_m_out"></div>
+  </div>
+
+  <div class="card">
+    <h2>🏦 Fixed expenses calculator <span class="tag">monthly &amp; yearly</span></h2>
+    <div class="grid2">
+      <div class="field"><label>Truck payment / month <span class="unit" data-u="money"></span></label><input type="number" id="c_x_truck" min="0" step="any" value="2500"></div>
+      <div class="field"><label>Trailer payment / month <span class="unit" data-u="money"></span></label><input type="number" id="c_x_trailer" min="0" step="any" value="700"></div>
+      <div class="field"><label>Other monthly (parking, ELD, phone…) <span class="unit" data-u="money"></span></label><input type="number" id="c_x_monthly" min="0" step="any" value="450"></div>
+      <div class="field"><label>Insurance / year <span class="unit" data-u="money"></span></label><input type="number" id="c_x_insurance" min="0" step="any" value="18000"></div>
+      <div class="field"><label>Other yearly (permits, plates, accounting…) <span class="unit" data-u="money"></span></label><input type="number" id="c_x_yearly" min="0" step="any" value="5000"></div>
+      <div class="field"><label>Annual distance <span class="unit" data-u="dist"></span></label><input type="number" id="c_x_annual" min="1" step="any" value="100000"></div>
+    </div>
+    <div class="miniOut" id="c_x_out"></div>
+  </div>
+
+  <div class="card">
+    <h2>⏱ Trip time calculator</h2>
+    <div class="grid2">
+      <div class="field"><label>Distance <span class="unit" data-u="dist"></span></label><input type="number" id="c_t_dist" min="0" step="any" value="500"></div>
+      <div class="field"><label>Average speed <span class="unit" data-u="dist"></span>/h</label><input type="number" id="c_t_speed" min="1" step="any" value="55"></div>
+      <div class="field"><label>Extra hours (loading, border…)</label><input type="number" id="c_t_extra" min="0" step="any" value="2"></div>
+      <div class="field"><label>Max driving hours / day</label><input type="number" id="c_t_maxday" min="1" step="any" value="11"></div>
+    </div>
+    <div class="miniOut" id="c_t_out"></div>
+  </div>
+
+  <div class="card">
+    <h2>💰 Rate &amp; break-even calculator</h2>
+    <div class="grid2">
+      <div class="field"><label>All-in cost per distance <span class="unit" data-u="perDist"></span></label><input type="number" id="c_r_cpd" min="0" step="any" value="2.1"></div>
+      <div class="field"><label>Trip distance <span class="unit" data-u="dist"></span></label><input type="number" id="c_r_dist" min="0" step="any" value="500"></div>
+      <div class="field"><label>Target margin % of price</label><input type="number" id="c_r_margin" min="0" max="95" step="any" value="15"></div>
+      <div class="field"><label>Offered rate (optional) <span class="unit" data-u="money"></span></label><input type="number" id="c_r_offer" min="0" step="any" placeholder="check an offer"></div>
+    </div>
+    <div class="miniOut" id="c_r_out"></div>
+  </div>
+</div>
+<div class="col">
+  <div class="card stopsCard">
+    <h2>📍 Route &amp; Stops</h2>
+    <div id="map"></div>
+    <p class="hint">Click the map to add a stop, or type an address below and press Enter / Search.</p>
+    <div class="stopControls">
+      <div id="stopsList"></div>
+      <div class="row">
+        <button class="btn ghost sm" id="btnAddStop">+ Add stop</button>
+      </div>
+      <div class="row">
+        <button class="btn" id="btnRoute">Calculate route</button>
+        <button class="btn sec sm" id="btnClearStops">Clear stops</button>
+        <span id="routeStatus" class="hint"></span>
+      </div>
+    </div>
+    <div class="routeSummary" id="routeSummary" style="display:none">
+      <div class="stat"><b id="rsDist">–</b><span>route distance</span></div>
+      <div class="stat"><b id="rsTime">–</b><span>drive time</span></div>
+      <div class="stat"><b id="rsTotal">–</b><span>total incl. deadhead</span></div>
+      <div class="stat"><b id="rsTripTime">–</b><span>total trip time</span></div>
+    </div>
+    <div class="grid3" style="margin-top:10px">
+      <div class="field"><label>Deadhead / empty <span class="unit" data-u="dist"></span></label><input type="number" id="deadhead" min="0" step="any" value="0"></div>
+      <div class="field"><label>Traffic / truck factor ×</label><input type="number" id="trafficFactor" min="0.5" step="0.05" value="1.15" title="OSRM times are car-based; trucks are slower. 1.15 = +15% time."></div>
+      <div class="field"><label>Extra hours (loading, border…)</label><input type="number" id="extraHours" min="0" step="0.25" value="0"></div>
+    </div>
+    <div class="grid2 adv" style="margin-top:8px">
+      <div class="field"><label>Manual distance override <span class="unit" data-u="dist"></span></label><input type="number" id="manualDist" min="0" step="any" placeholder="leave blank to use route"></div>
+      <div class="field"><label>Manual drive-time override (hours)</label><input type="number" id="manualTime" min="0" step="any" placeholder="leave blank to use route"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>🚛 Vehicle</h2>
+    <div class="savedRow noPrint">
+      <select id="vehSelect"><option value="">— saved vehicles —</option></select>
+      <button class="btn sec sm" id="vehSave">Save</button>
+      <button class="btn danger sm" id="vehDelete">Delete</button>
+    </div>
+    <div class="grid2">
+      <div class="field"><label>Vehicle name</label><input type="text" id="vehName" placeholder="e.g. Freightliner Cascadia"></div>
+      <div class="field"><label>Fuel economy <span class="unit" data-u="eco"></span></label><input type="number" id="vehEco" min="0.1" step="any" value="6.5"></div>
+      <div class="field"><label>Fuel price <span class="unit" data-u="perVol"></span></label><input type="number" id="fuelPrice" min="0" step="any" value="5.5"></div>
+      <div class="field"><label>DEF price <span class="unit" data-u="perVol"></span></label><input type="number" id="defPrice" min="0" step="any" value="12"></div>
+      <div class="field"><label>DEF consumption basis</label>
+        <select id="defMode"><option value="pct">% of fuel used</option><option value="dist">volume per 100 dist-units</option></select></div>
+      <div class="field"><label id="defValLabel">DEF rate (% of fuel)</label><input type="number" id="defVal" min="0" step="any" value="3"></div>
+      <div class="field adv"><label>Annual distance <span class="unit" data-u="dist"></span></label><input type="number" id="annualDist" min="1" step="any" value="100000" title="Used to spread per-year costs (insurance, repairs reserve) over this trip"></div>
+      <div class="field adv"><label>Tire cost per set <span class="unit" data-u="money"></span></label><input type="number" id="tireCost" min="0" step="any" value="4000"></div>
+      <div class="field adv"><label>Tire life <span class="unit" data-u="dist"></span></label><input type="number" id="tireLife" min="1" step="any" value="80000"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>👤 Driver pay</h2>
+    <div class="savedRow noPrint">
+      <select id="drvSelect"><option value="">— saved drivers —</option></select>
+      <button class="btn sec sm" id="drvSave">Save</button>
+      <button class="btn danger sm" id="drvDelete">Delete</button>
+    </div>
+    <div class="grid2">
+      <div class="field"><label>Driver name / profile</label><input type="text" id="drvName" placeholder="e.g. Company driver"></div>
+      <div class="field"><label>Pay model</label>
+        <select id="drvType">
+          <option value="perDist">Per distance</option>
+          <option value="hourly">Hourly</option>
+          <option value="combo">Hourly + per distance</option>
+          <option value="revenue">% of revenue</option>
+          <option value="flat">Flat per trip</option>
+        </select></div>
+      <div class="field drvF drvF-hourly drvF-combo"><label>Hourly rate <span class="unit" data-u="perHour"></span></label><input type="number" id="drvHourly" min="0" step="any" value="30"></div>
+      <div class="field drvF drvF-perDist drvF-combo"><label>Rate per distance <span class="unit" data-u="perDist"></span></label><input type="number" id="drvPerDist" min="0" step="any" value="0.65"></div>
+      <div class="field drvF drvF-revenue"><label>% of revenue</label><input type="number" id="drvRevPct" min="0" max="95" step="any" value="25"></div>
+      <div class="field drvF drvF-flat"><label>Flat amount <span class="unit" data-u="money"></span></label><input type="number" id="drvFlat" min="0" step="any" value="500"></div>
+      <div class="field adv"><label>Burden % (benefits, payroll tax)</label><input type="number" id="drvBurden" min="0" step="any" value="12"></div>
+    </div>
+  </div>
+</div>
+
+<div class="col">
+  <div class="quickNote">⚡ Quick mode — running costs, maintenance and overrides use your saved defaults. Switch to <b>Advanced</b> to edit them.</div>
+
+  <div class="card adv">
+    <h2>🧾 Running &amp; trip costs <span class="tag">tolls · customs · admin · insurance</span></h2>
+    <div class="itemRow" style="margin-bottom:2px">
+      <span class="hint">Item</span><span class="hint">Amount</span><span class="hint">Basis</span><span></span>
+    </div>
+    <div id="costRows"></div>
+    <button class="btn ghost sm noPrint" id="btnAddCost">+ Add cost item</button>
+    <button class="btn ghost sm noPrint" id="btnAddCommon" style="margin-top:6px">+ Add common monthly / yearly expenses (payments, ELD, parking…)</button>
+  </div>
+
+  <div class="card adv">
+    <h2>🔧 Maintenance &amp; repairs</h2>
+    <div class="itemRow maint" style="margin-bottom:2px">
+      <span class="hint">Service item</span><span class="hint">Cost</span><span class="hint">Interval <span data-u="dist" class="unit"></span></span><span></span>
+    </div>
+    <div id="maintRows"></div>
+    <button class="btn ghost sm noPrint" id="btnAddMaint">+ Add maintenance item</button>
+    <div class="grid2" style="margin-top:10px">
+      <div class="field"><label>Breakdown / repair reserve per year <span class="unit" data-u="money"></span></label><input type="number" id="repairReserve" min="0" step="any" value="8000" title="Annual budget for unexpected breakdowns, towing, road calls. Spread over annual distance."></div>
+      <div class="field"><label>Tires included?</label>
+        <select id="tiresOn"><option value="1">Yes — from vehicle card</option><option value="0">No</option></select></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>💰 Pricing</h2>
+    <div class="grid2">
+      <div class="field"><label>Margin type</label>
+        <select id="marginType">
+          <option value="marginPct">Margin % of price</option>
+          <option value="markupPct">Markup % on cost</option>
+          <option value="fixed">Fixed amount on top</option>
+        </select></div>
+      <div class="field"><label id="marginValLabel">Margin %</label><input type="number" id="marginVal" min="0" step="any" value="15"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>📊 Estimate</h2>
+    <div id="calcWarn" class="warnMsg" style="display:none"></div>
+    <table class="results">
+      <thead><tr><th>Cost line</th><th class="r">Amount</th><th class="r">per <span data-u="distShort"></span></th><th class="r">%</th></tr></thead>
+      <tbody id="resBody"><tr><td colspan="4" class="hint">Add at least two stops and calculate a route.</td></tr></tbody>
+    </table>
+    <div class="quoteBox" id="quoteBox" style="display:none">
+      <div><div class="lbl">QUOTE PRICE</div><div class="big" id="qPrice">–</div></div>
+      <div class="sub"><div class="lbl">Total cost</div><b id="qCost">–</b></div>
+      <div class="sub"><div class="lbl">Profit</div><b id="qProfit">–</b></div>
+      <div class="sub"><div class="lbl">Rate per <span data-u="distShort"></span></div><b id="qRate">–</b></div>
+    </div>
+    <div class="bars noPrint" id="bars"></div>
+    <div class="row noPrint" style="margin-top:12px">
+      <button class="btn sec sm" id="btnCopy">📋 Copy summary</button>
+      <span id="copyMsg" class="okMsg"></span>
+    </div>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+"use strict";
+/* ===================== Constants & helpers ===================== */
+const KM_PER_MI = 1.609344, L_PER_GAL = 3.785411784;
+const CUR_SYM = {CAD:"$",USD:"$",EUR:"€",GBP:"£",INR:"₹",MXN:"$",AUD:"$"};
+const $ = id => document.getElementById(id);
+const num = (id, def=0) => { const v = parseFloat($(id).value); return isFinite(v) ? v : def; };
+const fmt = (n, d=2) => isFinite(n) ? n.toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d}) : "–";
+
+let S = {            // settings (units)
+  dist:"mi", vol:"gal", eco:"mpg", cur:"CAD", mode:"advanced"
+};
+const sym = () => CUR_SYM[S.cur] || "";
+const money = n => sym()+fmt(n)+" "+S.cur;
+
+/* unit conversions: UI value <-> canonical (km, L, km/L, per-km, per-L) */
+const toKm    = v => S.dist==="mi" ? v*KM_PER_MI : v;
+const fromKm  = v => S.dist==="mi" ? v/KM_PER_MI : v;
+const toL     = v => S.vol==="gal" ? v*L_PER_GAL : v;
+const perVolToPerL   = v => S.vol==="gal" ? v/L_PER_GAL : v;   // $/gal -> $/L
+const perLToPerVol   = v => S.vol==="gal" ? v*L_PER_GAL : v;
+const perDistToPerKm = v => S.dist==="mi" ? v/KM_PER_MI : v;   // $/mi -> $/km
+const perKmToPerDist = v => S.dist==="mi" ? v*KM_PER_MI : v;
+function ecoToKmPerL(v){          // UI economy -> km/L
+  if(S.eco==="mpg")  return v*KM_PER_MI/L_PER_GAL;
+  if(S.eco==="l100") return v>0 ? 100/v : 0;
+  return v;                        // kml
+}
+function kmPerLToEco(v){
+  if(S.eco==="mpg")  return v*L_PER_GAL/KM_PER_MI;
+  if(S.eco==="l100") return v>0 ? 100/v : 0;
+  return v;
+}
+const distLabel = () => S.dist==="mi" ? "miles" : "km";
+const distShort = () => S.dist==="mi" ? "mi" : "km";
+const volShort  = () => S.vol==="gal" ? "gal" : "L";
+const ecoLabel  = () => S.eco==="mpg" ? "MPG" : (S.eco==="l100" ? "L/100km" : "km/L");
+
+function refreshUnitLabels(){
+  document.querySelectorAll("[data-u]").forEach(el=>{
+    const k = el.dataset.u;
+    if(k==="dist") el.textContent = "("+distLabel()+")";
+    else if(k==="distShort") el.textContent = distShort();
+    else if(k==="eco") el.textContent = "("+ecoLabel()+")";
+    else if(k==="perVol") el.textContent = "("+sym()+"/"+volShort()+")";
+    else if(k==="perDist") el.textContent = "("+sym()+"/"+distShort()+")";
+    else if(k==="perHour") el.textContent = "("+sym()+"/hr)";
+    else if(k==="money") el.textContent = "("+S.cur+")";
+  });
+}
+
+/* ===================== Persistence ===================== */
+const LS_KEY = "tpe_v1";
+let DB = { vehicles:[], drivers:[], costRows:null, maintRows:null, settings:null };
+function loadDB(){
+  try{ const raw = localStorage.getItem(LS_KEY); if(raw) DB = Object.assign(DB, JSON.parse(raw)); }catch(e){}
+}
+function saveDB(){
+  DB.costRows = costRows; DB.maintRows = maintRows; DB.settings = S;
+  try{ localStorage.setItem(LS_KEY, JSON.stringify(DB)); }catch(e){}
+}
+
+/* ===================== Map & stops ===================== */
+let map, routeLine=null, markers=[];
+let stops = [];   // {name, lat, lon}
+let route = { km:0, hours:0, ok:false };
+
+function initMap(){
+  map = L.map("map").setView([43.65, -79.38], 6);
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    {maxZoom:19, attribution:"© OpenStreetMap contributors"}).addTo(map);
+  map.on("click", async e=>{
+    const s = {name: fmt(e.latlng.lat,4)+", "+fmt(e.latlng.lng,4), lat:e.latlng.lat, lon:e.latlng.lng};
+    stops.push(s); renderStops(); drawMarkers();
+    reverseGeocode(s).then(()=>renderStops());
+  });
+}
+async function reverseGeocode(s){
+  try{
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${s.lat}&lon=${s.lon}&zoom=14`);
+    const j = await r.json();
+    if(j && j.display_name) s.name = j.display_name.split(",").slice(0,3).join(",");
+  }catch(e){}
+}
+async function geocode(i){
+  const inp = document.querySelector(`#stopsList input[data-i="${i}"]`);
+  const q = inp.value.trim(); if(!q) return;
+  setStatus("Searching “"+q+"”…");
+  try{
+    const r = await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&q="+encodeURIComponent(q));
+    const j = await r.json();
+    if(j.length){
+      stops[i] = {name:j[0].display_name.split(",").slice(0,3).join(","), lat:+j[0].lat, lon:+j[0].lon};
+      setStatus(""); renderStops(); drawMarkers();
+      map.fitBounds(L.latLngBounds(stops.filter(s=>s.lat).map(s=>[s.lat,s.lon])).pad(0.3));
+    } else setStatus("No result for “"+q+"”. Try adding city / province.", true);
+  }catch(e){ setStatus("Search failed — check internet connection.", true); }
+}
+function setStatus(msg, bad){ const el=$("routeStatus"); el.textContent=msg; el.style.color = bad?"var(--bad)":"var(--muted)"; }
+function drawMarkers(){
+  markers.forEach(m=>map.removeLayer(m)); markers=[];
+  stops.forEach((s,i)=>{
+    if(s.lat==null) return;
+    const m = L.marker([s.lat,s.lon]).addTo(map).bindTooltip(String(i+1)+". "+s.name);
+    markers.push(m);
+  });
+}
+function renderStops(){
+  const box = $("stopsList"); box.innerHTML = "";
+  if(!stops.length){ stops = [{name:"",lat:null,lon:null},{name:"",lat:null,lon:null}]; }
+  stops.forEach((s,i)=>{
+    const div = document.createElement("div"); div.className="stopRow";
+    div.innerHTML = `<span class="num">${i+1}</span>
+      <input type="text" data-i="${i}" value="${(s.name||"").replace(/"/g,"&quot;")}" placeholder="Address, city, or postal code">
+      <span class="geo">${s.lat!=null?"✓":""}</span>
+      <button class="btn sec sm" data-go="${i}">Search</button>
+      <button class="iconBtn" data-del="${i}" title="Remove">✕</button>`;
+    box.appendChild(div);
+  });
+  box.querySelectorAll("input").forEach(inp=>{
+    inp.addEventListener("keydown", e=>{ if(e.key==="Enter") geocode(+inp.dataset.i); });
+    inp.addEventListener("change", ()=>{ const i=+inp.dataset.i; if(stops[i].name!==inp.value){ stops[i]={name:inp.value,lat:null,lon:null}; }});
+  });
+  box.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=>geocode(+b.dataset.go)));
+  box.querySelectorAll("[data-del]").forEach(b=>b.addEventListener("click",()=>{ stops.splice(+b.dataset.del,1); renderStops(); drawMarkers(); }));
+}
+async function calcRoute(){
+  const pts = stops.filter(s=>s.lat!=null);
+  const pending = stops.filter(s=>s.lat==null && s.name.trim());
+  if(pending.length){                       // geocode any typed-but-unsearched stops first
+    setStatus("Locating typed stops…");
+    for(let i=0;i<stops.length;i++){
+      if(stops[i].lat==null && stops[i].name.trim()) await geocode(i);
+    }
+  }
+  const pts2 = stops.filter(s=>s.lat!=null);
+  if(pts2.length<2){ setStatus("Need at least 2 located stops.", true); return; }
+  setStatus("Routing…");
+  try{
+    const coords = pts2.map(s=>s.lon+","+s.lat).join(";");
+    const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`);
+    const j = await r.json();
+    if(j.code!=="Ok" || !j.routes.length){ setStatus("Routing failed: "+(j.message||j.code), true); return; }
+    const rt = j.routes[0];
+    route = { km: rt.distance/1000, hours: rt.duration/3600, ok:true };
+    if(routeLine) map.removeLayer(routeLine);
+    routeLine = L.geoJSON(rt.geometry, {style:{color:"#0f62fe",weight:5,opacity:.75}}).addTo(map);
+    map.fitBounds(routeLine.getBounds().pad(0.15));
+    setStatus("");
+    calc();
+  }catch(e){ setStatus("Routing failed — check internet connection.", true); }
+}
+/* ===================== Cost & maintenance rows (canonical units: km, L, $) ===================== */
+let costRows = null;   // {name, amt, basis: trip|perDist($/km)|perHour|perYear}
+let maintRows = null;  // {name, cost, intervalKm}
+function defaultCostRows(){ return [
+  {name:"Tolls", amt:150, basis:"trip"},
+  {name:"Customs / border fees", amt:0, basis:"trip"},
+  {name:"Admin & dispatch overhead", amt:0.05, basis:"perDist"},
+  {name:"Insurance", amt:18000, basis:"perYear"},
+  {name:"Permits & licences", amt:3500, basis:"perYear"},
+  {name:"Truck payment", amt:2500, basis:"perMonth"},
+  {name:"Trailer payment", amt:700, basis:"perMonth"}
+];}
+function commonFixedRows(){ return [
+  {name:"Truck payment", amt:2500, basis:"perMonth"},
+  {name:"Trailer payment", amt:700, basis:"perMonth"},
+  {name:"ELD / software", amt:45, basis:"perMonth"},
+  {name:"Truck parking", amt:300, basis:"perMonth"},
+  {name:"Phone / communications", amt:100, basis:"perMonth"},
+  {name:"Accounting & legal", amt:2000, basis:"perYear"},
+  {name:"Plates & registration", amt:2500, basis:"perYear"}
+];}
+function defaultMaintRows(){ return [
+  {name:"Oil change / PM service", cost:450, intervalKm:40000},
+  {name:"Brakes", cost:1200, intervalKm:96000},
+  {name:"Annual inspection / misc", cost:800, intervalKm:100000}
+];}
+function renderCostRows(){
+  const box=$("costRows"); box.innerHTML="";
+  costRows.forEach((c,i)=>{
+    const disp = c.basis==="perDist" ? perKmToPerDist(c.amt) : c.amt;
+    const div=document.createElement("div"); div.className="itemRow";
+    div.innerHTML=`<input type="text" value="${c.name.replace(/"/g,"&quot;")}" data-cn="${i}">
+      <input type="number" step="any" min="0" value="${+disp.toFixed(4)}" data-ca="${i}">
+      <select data-cb="${i}">
+        <option value="trip"${c.basis==="trip"?" selected":""}>per trip</option>
+        <option value="perDist"${c.basis==="perDist"?" selected":""}>per ${distShort()}</option>
+        <option value="perHour"${c.basis==="perHour"?" selected":""}>per hour</option>
+        <option value="perMonth"${c.basis==="perMonth"?" selected":""}>per month</option>
+        <option value="perYear"${c.basis==="perYear"?" selected":""}>per year</option>
+      </select>
+      <button class="iconBtn" data-cd="${i}" title="Remove">✕</button>`;
+    box.appendChild(div);
+  });
+  box.querySelectorAll("[data-cn]").forEach(e=>e.addEventListener("change",()=>{costRows[+e.dataset.cn].name=e.value; after();}));
+  box.querySelectorAll("[data-ca]").forEach(e=>e.addEventListener("input",()=>{
+    const i=+e.dataset.ca, v=parseFloat(e.value)||0;
+    costRows[i].amt = costRows[i].basis==="perDist" ? perDistToPerKm(v) : v; after();
+  }));
+  box.querySelectorAll("[data-cb]").forEach(e=>e.addEventListener("change",()=>{
+    const i=+e.dataset.cb, row=costRows[i];
+    const dispEl = box.querySelector(`[data-ca="${i}"]`), v=parseFloat(dispEl.value)||0;
+    row.basis=e.value;
+    row.amt = row.basis==="perDist" ? perDistToPerKm(v) : v;  // reinterpret typed number in new basis
+    after();
+  }));
+  box.querySelectorAll("[data-cd]").forEach(e=>e.addEventListener("click",()=>{costRows.splice(+e.dataset.cd,1); renderCostRows(); after();}));
+}
+function renderMaintRows(){
+  const box=$("maintRows"); box.innerHTML="";
+  maintRows.forEach((m,i)=>{
+    const div=document.createElement("div"); div.className="itemRow maint";
+    div.innerHTML=`<input type="text" value="${m.name.replace(/"/g,"&quot;")}" data-mn="${i}">
+      <input type="number" step="any" min="0" value="${+m.cost.toFixed(2)}" data-mc="${i}">
+      <input type="number" step="any" min="1" value="${Math.round(fromKm(m.intervalKm))}" data-mi="${i}">
+      <button class="iconBtn" data-md="${i}" title="Remove">✕</button>`;
+    box.appendChild(div);
+  });
+  box.querySelectorAll("[data-mn]").forEach(e=>e.addEventListener("change",()=>{maintRows[+e.dataset.mn].name=e.value; after();}));
+  box.querySelectorAll("[data-mc]").forEach(e=>e.addEventListener("input",()=>{maintRows[+e.dataset.mc].cost=parseFloat(e.value)||0; after();}));
+  box.querySelectorAll("[data-mi]").forEach(e=>e.addEventListener("input",()=>{maintRows[+e.dataset.mi].intervalKm=toKm(parseFloat(e.value)||1); after();}));
+  box.querySelectorAll("[data-md]").forEach(e=>e.addEventListener("click",()=>{maintRows.splice(+e.dataset.md,1); renderMaintRows(); after();}));
+}
+
+/* ===================== Vehicle / driver profiles (canonical) ===================== */
+function readVehicleForm(){ return {
+  name:$("vehName").value.trim()||"Unnamed vehicle",
+  kmPerL: ecoToKmPerL(num("vehEco",6.5)),
+  fuelPerL: perVolToPerL(num("fuelPrice")),
+  defPerL: perVolToPerL(num("defPrice")),
+  defMode: $("defMode").value,
+  defVal: $("defMode").value==="pct" ? num("defVal") : toL(num("defVal"))/(100*toKm(1)),  // canonical: pct OR L per km
+  annualKm: toKm(num("annualDist",100000)),
+  tireCost: num("tireCost"), tireLifeKm: toKm(num("tireLife",80000))
+};}
+function writeVehicleForm(v){
+  $("vehName").value=v.name;
+  $("vehEco").value=+kmPerLToEco(v.kmPerL).toFixed(3);
+  $("fuelPrice").value=+perLToPerVol(v.fuelPerL).toFixed(3);
+  $("defPrice").value=+perLToPerVol(v.defPerL).toFixed(3);
+  $("defMode").value=v.defMode;
+  $("defVal").value = v.defMode==="pct" ? v.defVal : +(v.defVal*100*toKm(1)/toL(1)).toFixed(3);
+  $("annualDist").value=Math.round(fromKm(v.annualKm));
+  $("tireCost").value=v.tireCost; $("tireLife").value=Math.round(fromKm(v.tireLifeKm));
+  updateDefLabel();
+}
+function readDriverForm(){ return {
+  name:$("drvName").value.trim()||"Unnamed driver",
+  type:$("drvType").value,
+  hourly:num("drvHourly"), perKm:perDistToPerKm(num("drvPerDist")),
+  revPct:num("drvRevPct"), flat:num("drvFlat"), burden:num("drvBurden")
+};}
+function writeDriverForm(d){
+  $("drvName").value=d.name; $("drvType").value=d.type;
+  $("drvHourly").value=d.hourly; $("drvPerDist").value=+perKmToPerDist(d.perKm).toFixed(3);
+  $("drvRevPct").value=d.revPct; $("drvFlat").value=d.flat; $("drvBurden").value=d.burden;
+  updateDrvFields();
+}
+function refreshProfileSelects(){
+  const vs=$("vehSelect"); vs.innerHTML='<option value="">— saved vehicles —</option>';
+  DB.vehicles.forEach((v,i)=>vs.insertAdjacentHTML("beforeend",`<option value="${i}">${v.name}</option>`));
+  const ds=$("drvSelect"); ds.innerHTML='<option value="">— saved drivers —</option>';
+  DB.drivers.forEach((d,i)=>ds.insertAdjacentHTML("beforeend",`<option value="${i}">${d.name}</option>`));
+}
+
+/* ===================== Calculation engine ===================== */
+let lastResult=null;
+function calc(){
+  const warn=$("calcWarn"); warn.style.display="none";
+  const mDist=num("manualDist",NaN), mTime=num("manualTime",NaN);
+  const routeKm = isFinite(mDist)&&mDist>0 ? toKm(mDist) : route.km;
+  const routeHours = isFinite(mTime)&&mTime>0 ? mTime : route.hours;
+  const totalKm = routeKm + toKm(num("deadhead"));
+  const tripHours = routeHours*num("trafficFactor",1) + num("extraHours");
+  $("routeSummary").style.display = totalKm>0 ? "flex" : "none";
+  $("rsDist").textContent = fmt(fromKm(routeKm),0)+" "+distShort();
+  $("rsTime").textContent = fmtH(routeHours);
+  $("rsTotal").textContent = fmt(fromKm(totalKm),0)+" "+distShort();
+  $("rsTripTime").textContent = fmtH(tripHours);
+  if(totalKm<=0){ $("resBody").innerHTML='<tr><td colspan="4" class="hint">Add at least two stops and calculate a route (or enter a manual distance).</td></tr>'; $("quoteBox").style.display="none"; $("bars").innerHTML=""; return; }
+
+  const V = readVehicleForm(), D = readDriverForm();
+  const lines=[];
+  // Fuel & DEF
+  const fuelL = V.kmPerL>0 ? totalKm/V.kmPerL : 0;
+  lines.push(["Fuel ("+fmt(S.vol==="gal"?fuelL/L_PER_GAL:fuelL,0)+" "+volShort()+")", fuelL*V.fuelPerL]);
+  const defL = V.defMode==="pct" ? fuelL*V.defVal/100 : totalKm*V.defVal;
+  lines.push(["DEF ("+fmt(S.vol==="gal"?defL/L_PER_GAL:defL,1)+" "+volShort()+")", defL*V.defPerL]);
+  // Driver (non-revenue part)
+  const bMul = 1+D.burden/100;
+  let drvFixed=0, rFrac=0;
+  if(D.type==="hourly") drvFixed=D.hourly*tripHours;
+  else if(D.type==="perDist") drvFixed=D.perKm*totalKm;
+  else if(D.type==="combo") drvFixed=D.hourly*tripHours + D.perKm*totalKm;
+  else if(D.type==="flat") drvFixed=D.flat;
+  else if(D.type==="revenue") rFrac=(D.revPct/100)*bMul;
+  drvFixed*=bMul;
+  if(D.type!=="revenue") lines.push(["Driver pay (incl. burden)", drvFixed]);
+  // Maintenance
+  let maint=0; maintRows.forEach(m=>{ if(m.intervalKm>0) maint+=m.cost/m.intervalKm*totalKm; });
+  lines.push(["Scheduled maintenance", maint]);
+  if($("tiresOn").value==="1" && V.tireLifeKm>0) lines.push(["Tires", V.tireCost/V.tireLifeKm*totalKm]);
+  const annualKm=Math.max(V.annualKm,1);
+  lines.push(["Breakdown / repair reserve", num("repairReserve")/annualKm*totalKm]);
+  // Running cost rows
+  costRows.forEach(c=>{
+    let v=0;
+    if(c.basis==="trip") v=c.amt;
+    else if(c.basis==="perDist") v=c.amt*totalKm;
+    else if(c.basis==="perHour") v=c.amt*tripHours;
+    else if(c.basis==="perMonth") v=c.amt*12/annualKm*totalKm;
+    else if(c.basis==="perYear") v=c.amt/annualKm*totalKm;
+    if(v>0) lines.push([c.name||"Cost item", v]);
+  });
+  const C = lines.reduce((a,l)=>a+l[1],0);
+  // Pricing (handles revenue-share driver algebraically)
+  const mType=$("marginType").value, mVal=num("marginVal");
+  let price=0, err="";
+  if(mType==="marginPct"){
+    const den=1-mVal/100-rFrac;
+    den>0.01 ? price=C/den : err="Margin % + driver revenue % too high (≥100% of price).";
+  } else if(mType==="markupPct"){
+    const den=1-rFrac*(1+mVal/100);
+    den>0.01 ? price=C*(1+mVal/100)/den : err="Driver revenue % too high for this markup.";
+  } else {
+    const den=1-rFrac;
+    den>0.01 ? price=(C+mVal)/den : err="Driver revenue % too high.";
+  }
+  if(err){ warn.textContent="⚠ "+err; warn.style.display="block"; $("quoteBox").style.display="none"; return; }
+  if(rFrac>0) lines.push(["Driver pay ("+fmt(D.revPct,0)+"% of revenue, incl. burden)", rFrac*price]);
+  const totalCost=C+rFrac*price, profit=price-totalCost;
+
+  // Render table
+  const tb=$("resBody"); tb.innerHTML="";
+  lines.sort((a,b)=>b[1]-a[1]);
+  lines.forEach(l=>{
+    tb.insertAdjacentHTML("beforeend",`<tr><td>${l[0]}</td><td class="r">${money(l[1])}</td><td class="r">${sym()+fmt(l[1]/fromKm(totalKm))}</td><td class="r">${fmt(l[1]/totalCost*100,1)}%</td></tr>`);
+  });
+  tb.insertAdjacentHTML("beforeend",`<tr class="total"><td>Total cost</td><td class="r">${money(totalCost)}</td><td class="r">${sym()+fmt(totalCost/fromKm(totalKm))}</td><td class="r">100%</td></tr>`);
+  $("quoteBox").style.display="flex";
+  $("qPrice").textContent=money(price);
+  $("qCost").textContent=money(totalCost);
+  $("qProfit").textContent=money(profit)+" ("+fmt(profit/price*100,1)+"%)";
+  $("qRate").textContent=sym()+fmt(price/fromKm(totalKm));
+  // Bars
+  const mx=Math.max(...lines.map(l=>l[1]),1);
+  $("bars").innerHTML=lines.map(l=>`<div class="bar"><span class="name">${l[0].split("(")[0]}</span><div class="track"><div class="fill" style="width:${l[1]/mx*100}%"></div></div><span class="val">${sym()+fmt(l[1],0)}</span></div>`).join("");
+  lastResult={lines,totalCost,price,profit,totalKm,tripHours};
+  saveDB();
+}
+function fmtH(h){ if(!isFinite(h)||h<=0) return "–"; const H=Math.floor(h),M=Math.round((h-H)*60); return H+"h "+String(M).padStart(2,"0")+"m"; }
+function after(){ calc(); }
+
+/* ===================== Unit switching ===================== */
+function captureAllCanon(){
+  return { veh:readVehicleForm(), drv:readDriverForm(),
+    deadheadKm:toKm(num("deadhead")), manualDistKm:num("manualDist",0)>0?toKm(num("manualDist")):null };
+}
+function applyAllCanon(c){
+  writeVehicleForm(c.veh); writeDriverForm(c.drv);
+  $("deadhead").value=+fromKm(c.deadheadKm).toFixed(1);
+  if(c.manualDistKm!=null) $("manualDist").value=+fromKm(c.manualDistKm).toFixed(1);
+}
+function onUnitChange(){
+  const canon=captureAllCanon();
+  S.dist=$("uDist").value; S.vol=$("uVol").value; S.eco=$("uEco").value; S.cur=$("uCur").value;
+  applyAllCanon(canon); renderCostRows(); renderMaintRows(); refreshUnitLabels(); calc();
+}
+
+/* ===================== UI wiring ===================== */
+function updateDefLabel(){
+  $("defValLabel").textContent = $("defMode").value==="pct" ? "DEF rate (% of fuel)" : "DEF: "+volShort()+" per 100 "+distShort();
+}
+function updateDrvFields(){
+  const t=$("drvType").value;
+  document.querySelectorAll(".drvF").forEach(e=>e.style.display = e.classList.contains("drvF-"+t) ? "" : "none");
+}
+function updateMarginLabel(){
+  const t=$("marginType").value;
+  $("marginValLabel").textContent = t==="marginPct" ? "Margin %" : t==="markupPct" ? "Markup %" : "Fixed amount ("+S.cur+")";
+}
+function setMode(m){
+  S.mode=m; document.body.classList.toggle("quick",m==="quick");
+  $("modeQuick").classList.toggle("on",m==="quick");
+  $("modeAdv").classList.toggle("on",m==="advanced");
+  setTimeout(()=>map.invalidateSize(),50); saveDB();
+}
+function setView(v){
+  document.body.classList.toggle("calcs",v==="calcs");
+  $("viewEst").classList.toggle("on",v!=="calcs");
+  $("viewCalc").classList.toggle("on",v==="calcs");
+  if(v==="calcs") calcAll(); else setTimeout(()=>map.invalidateSize(),50);
+}
+
+/* ===================== Standalone calculators ===================== */
+function ln(label,val,big){ return `<div class="ln${big?" big":""}"><span>${label}</span><b>${val}</b></div>`; }
+function calcAll(){
+  const d=(id,def=0)=>{const v=parseFloat($(id).value); return isFinite(v)?v:def;};
+  // Fuel & DEF — inputs are in current display units
+  {
+    const dist=d("c_f_dist"), kmpl=ecoToKmPerL(d("c_f_eco"));
+    const fuelL=kmpl>0? toKm(dist)/kmpl : 0;
+    const fuelVol=S.vol==="gal"? fuelL/L_PER_GAL : fuelL;
+    const fuelCost=fuelVol*d("c_f_price");
+    const defVol=fuelVol*d("c_f_defpct")/100, defCost=defVol*d("c_f_defprice");
+    $("c_f_out").innerHTML =
+      ln("Fuel used", fmt(fuelVol,1)+" "+volShort()) +
+      ln("Fuel cost", money(fuelCost)) +
+      ln("DEF used / cost", fmt(defVol,1)+" "+volShort()+" · "+money(defCost)) +
+      ln("Cost per "+distShort(), dist>0? sym()+fmt((fuelCost+defCost)/dist) : "–") +
+      ln("Total fuel + DEF", money(fuelCost+defCost), true);
+  }
+  // Driver pay
+  {
+    const t=$("c_d_type").value, b=1+d("c_d_burden")/100;
+    let base=0;
+    if(t==="hourly") base=d("c_d_hr")*d("c_d_hours");
+    else if(t==="perDist") base=d("c_d_pd")*d("c_d_dist");
+    else if(t==="combo") base=d("c_d_hr")*d("c_d_hours")+d("c_d_pd")*d("c_d_dist");
+    else if(t==="revenue") base=d("c_d_rev")*d("c_d_pct")/100;
+    else base=d("c_d_flat");
+    const tot=base*b, dist=d("c_d_dist"), hrs=d("c_d_hours");
+    $("c_d_out").innerHTML =
+      ln("Base pay", money(base)) +
+      ln("Burden", money(tot-base)) +
+      ln("Effective per "+distShort(), dist>0? sym()+fmt(tot/dist):"–") +
+      ln("Effective per hour", hrs>0? sym()+fmt(tot/hrs):"–") +
+      ln("Total driver cost", money(tot), true);
+  }
+  // Maintenance
+  {
+    const perD1=d("c_m_interval")>0? d("c_m_cost")/d("c_m_interval") : 0;
+    const perD2=d("c_m_annual")>0? d("c_m_repair")/d("c_m_annual") : 0;
+    const dist=d("c_m_dist");
+    $("c_m_out").innerHTML =
+      ln("Scheduled service per "+distShort(), sym()+fmt(perD1,4)) +
+      ln("Breakdown reserve per "+distShort(), sym()+fmt(perD2,4)) +
+      ln("Combined per "+distShort(), sym()+fmt(perD1+perD2,4)) +
+      ln("Cost for this trip", money((perD1+perD2)*dist), true);
+  }
+  // Fixed expenses
+  {
+    const monthly=d("c_x_truck")+d("c_x_trailer")+d("c_x_monthly");
+    const yearly=monthly*12+d("c_x_insurance")+d("c_x_yearly");
+    const annual=Math.max(d("c_x_annual"),1);
+    $("c_x_out").innerHTML =
+      ln("Total monthly", money(monthly)) +
+      ln("Total yearly", money(yearly)) +
+      ln("Per "+distShort()+" ("+fmt(annual,0)+" "+distShort()+"/yr)", sym()+fmt(yearly/annual,3)) +
+      ln("Per working day (260/yr)", money(yearly/260), true);
+  }
+  // Trip time
+  {
+    const drive=d("c_t_speed")>0? d("c_t_dist")/d("c_t_speed") : 0;
+    const tot=drive+d("c_t_extra");
+    const days=d("c_t_maxday")>0? Math.ceil(drive/d("c_t_maxday")) : 1;
+    $("c_t_out").innerHTML =
+      ln("Driving time", fmtH(drive)) +
+      ln("Total trip time", fmtH(tot)) +
+      ln("Days needed (HOS)", String(Math.max(days,1)), true);
+  }
+  // Rate & break-even
+  {
+    const cost=d("c_r_cpd")*d("c_r_dist"), m=d("c_r_margin")/100;
+    const price=m<0.95? cost/(1-m) : 0;
+    const offer=d("c_r_offer");
+    let offerLn="";
+    if(offer>0){
+      const p=offer-cost;
+      offerLn=ln("Offered rate check", (p>=0?"profit ":"LOSS ")+money(Math.abs(p))+" ("+fmt(offer>0?p/offer*100:0,1)+"%)");
+    }
+    $("c_r_out").innerHTML =
+      ln("Break-even cost", money(cost)) +
+      ln("Quote at "+fmt(m*100,0)+"% margin", money(price)) +
+      ln("Rate per "+distShort(), d("c_r_dist")>0? sym()+fmt(price/d("c_r_dist")):"–") +
+      offerLn +
+      ln("Profit at quote", money(price-cost), true);
+  }
+}
+function copySummary(){
+  if(!lastResult){ return; }
+  const r=lastResult;
+  let t="TRANSPORT PRICE ESTIMATE\n"+new Date().toLocaleDateString()+"\n\n";
+  t+="Stops:\n"+stops.filter(s=>s.lat!=null).map((s,i)=>"  "+(i+1)+". "+s.name).join("\n")+"\n\n";
+  t+="Distance: "+fmt(fromKm(r.totalKm),0)+" "+distShort()+" (incl. deadhead)\nTrip time: "+fmtH(r.tripHours)+"\n\n";
+  r.lines.forEach(l=>{ t+=l[0]+": "+money(l[1])+"\n"; });
+  t+="\nTOTAL COST: "+money(r.totalCost)+"\nQUOTE PRICE: "+money(r.price)+"\nRate: "+sym()+fmt(r.price/fromKm(r.totalKm))+" per "+distShort()+"\n";
+  navigator.clipboard.writeText(t).then(()=>{ $("copyMsg").textContent="Copied!"; setTimeout(()=>$("copyMsg").textContent="",2000); });
+}
+
+function init(){
+  loadDB();
+  if(DB.settings) S=Object.assign(S,DB.settings);
+  $("uDist").value=S.dist; $("uVol").value=S.vol; $("uEco").value=S.eco; $("uCur").value=S.cur;
+  costRows = Array.isArray(DB.costRows)&&DB.costRows.length ? DB.costRows : defaultCostRows();
+  maintRows = Array.isArray(DB.maintRows)&&DB.maintRows.length ? DB.maintRows : defaultMaintRows();
+  initMap(); renderStops(); renderCostRows(); renderMaintRows(); refreshProfileSelects();
+  refreshUnitLabels(); updateDefLabel(); updateDrvFields(); updateMarginLabel();
+  setMode(S.mode||"advanced");
+
+  ["uDist","uVol","uEco","uCur"].forEach(id=>$(id).addEventListener("change",onUnitChange));
+  $("modeQuick").onclick=()=>setMode("quick");
+  $("modeAdv").onclick=()=>setMode("advanced");
+  $("btnAddStop").onclick=()=>{stops.push({name:"",lat:null,lon:null}); renderStops();};
+  $("btnClearStops").onclick=()=>{stops=[]; renderStops(); drawMarkers(); if(routeLine){map.removeLayer(routeLine);routeLine=null;} route={km:0,hours:0,ok:false}; calc();};
+  $("btnRoute").onclick=calcRoute;
+  $("defMode").addEventListener("change",()=>{updateDefLabel(); calc();});
+  $("drvType").addEventListener("change",()=>{updateDrvFields(); calc();});
+  $("marginType").addEventListener("change",()=>{updateMarginLabel(); calc();});
+  $("btnAddCost").onclick=()=>{costRows.push({name:"New item",amt:0,basis:"trip"}); renderCostRows(); after();};
+  $("btnAddCommon").onclick=()=>{
+    const existing=new Set(costRows.map(c=>c.name.toLowerCase()));
+    commonFixedRows().forEach(r=>{ if(!existing.has(r.name.toLowerCase())) costRows.push(r); });
+    renderCostRows(); after();
+  };
+  $("viewEst").onclick=()=>setView("est");
+  $("viewCalc").onclick=()=>setView("calcs");
+  $("calcsView").addEventListener("input",calcAll);
+  $("calcsView").addEventListener("change",calcAll);
+  calcAll();
+  $("btnAddMaint").onclick=()=>{maintRows.push({name:"New service",cost:0,intervalKm:toKm(50000)}); renderMaintRows(); after();};
+  $("btnPrint").onclick=()=>window.print();
+  $("btnCopy").onclick=copySummary;
+  // Profiles
+  $("vehSave").onclick=()=>{ const v=readVehicleForm(); const i=DB.vehicles.findIndex(x=>x.name===v.name);
+    i>=0 ? DB.vehicles[i]=v : DB.vehicles.push(v); refreshProfileSelects(); $("vehSelect").value=String(DB.vehicles.findIndex(x=>x.name===v.name)); saveDB(); };
+  $("vehDelete").onclick=()=>{ const i=+$("vehSelect").value; if(isFinite(i)&&DB.vehicles[i]){DB.vehicles.splice(i,1); refreshProfileSelects(); saveDB();} };
+  $("vehSelect").addEventListener("change",()=>{ const v=DB.vehicles[+$("vehSelect").value]; if(v){writeVehicleForm(v); calc();} });
+  $("drvSave").onclick=()=>{ const d=readDriverForm(); const i=DB.drivers.findIndex(x=>x.name===d.name);
+    i>=0 ? DB.drivers[i]=d : DB.drivers.push(d); refreshProfileSelects(); $("drvSelect").value=String(DB.drivers.findIndex(x=>x.name===d.name)); saveDB(); };
+  $("drvDelete").onclick=()=>{ const i=+$("drvSelect").value; if(isFinite(i)&&DB.drivers[i]){DB.drivers.splice(i,1); refreshProfileSelects(); saveDB();} };
+  $("drvSelect").addEventListener("change",()=>{ const d=DB.drivers[+$("drvSelect").value]; if(d){writeDriverForm(d); calc();} });
+  // Recalculate on any numeric input
+  document.querySelectorAll('main input[type=number], main select').forEach(el=>{
+    el.addEventListener("input",()=>calc());
+  });
+  calc();
+}
+document.addEventListener("DOMContentLoaded", init);
+</script>
+</main>
+</body>
+</html>
